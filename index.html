@@ -55,27 +55,29 @@
   <!-- Cámara en el origen; la orientación la da el giroscopio -->
   <a-entity id="cam3d" camera="fov:70; near:0.05" position="0 0 0" look-controls="enabled:false"></a-entity>
 
-  <!-- TODO el contenido cuelga de este grupo, que se coloca a 1 m al iniciar -->
-  <a-entity id="grupo" visible="false">
-    <a-video id="video3d" src="#vid" width="0.72" height="0.405" position="0 0.45 0"></a-video>
+  <!-- Cada elemento se coloca por separado (ver colocarFrenteAlTelefono) -->
+  <a-video id="video3d" src="#vid" width="0.72" height="0.405" visible="false"></a-video>
 
-    <a-entity id="mAparicion" position="0 -0.5 0" visible="false" gltf-model="#glbAparicion" clip-player></a-entity>
-    <a-entity id="mEspera"    position="0 -0.5 0" visible="false" gltf-model="#glbEspera"    clip-player></a-entity>
-    <a-entity id="mGiro"      position="0 -0.5 0" visible="false" gltf-model="#glbGiro"      clip-player></a-entity>
+  <a-entity id="mAparicion" visible="false" gltf-model="#glbAparicion" clip-player></a-entity>
+  <a-entity id="mEspera"    visible="false" gltf-model="#glbEspera"    clip-player></a-entity>
+  <a-entity id="mGiro"      visible="false" gltf-model="#glbGiro"      clip-player></a-entity>
 
-    <a-entity id="botones" position="0 -0.66 0.1">
-      <a-image id="btnSi" class="clickable" src="#imgSi" width="0.2" height="0.191" position="-0.19 0 0"></a-image>
-      <a-image id="btnNo" class="clickable" src="#imgNo" width="0.2" height="0.191" position="0.19 0 0"></a-image>
-    </a-entity>
+  <a-entity id="botones" visible="false">
+    <a-image id="btnSi" class="clickable" src="#imgSi" width="0.2" height="0.191" position="-0.19 0 0"></a-image>
+    <a-image id="btnNo" class="clickable" src="#imgNo" width="0.2" height="0.191" position="0.19 0 0"></a-image>
   </a-entity>
 </a-scene>
 
 <script>
 /* ================== CONFIGURACIÓN ================== */
 const LINK_SI        = "https://docs.google.com/document/d/1g2UB1Tdas4mCC6SRX_setnILhVluAiEfka7CHQfyujU/edit?usp=sharing";
-const DISTANCIA_M    = 1.0;   // distancia al teléfono al iniciar (metros)
 const ALTURA_ROBOT_M = 0.55;  // alto del robot en pantalla (metros)
 const GIRAR_ROBOT_Y  = 0;     // si el robot aparece de espaldas, poné 180
+
+// Posiciones relativas al teléfono al iniciar (metros).
+// adelante: hacia donde mira el teléfono · abajo: bajo la altura del teléfono · derecha: positivo = derecha, negativo = izquierda
+const ROBOT = { adelante: 2, abajo: 1.6, derecha: -1 };   // GLB: 2 m adelante, 1.60 m abajo, 1 m a la izquierda
+const VIDEO = { adelante: 2, abajo: 1.0, derecha: 1 };    // MP4: 2 m adelante, 1 m abajo, 1 m a la derecha
 /* =================================================== */
 
 /* ---- Reproduce las animaciones de cada GLB y avisa cuando terminan ---- */
@@ -88,7 +90,8 @@ AFRAME.registerComponent('clip-player', {
     this.mixer = null; this.pendientes = 0;
     this.el.addEventListener('model-loaded', () => {
       const mesh = this.el.getObject3D('mesh');
-      // Ajusta tamaño y apoya el robot en su base, centrado
+      // Ajusta tamaño y apoya el robot en su base, centrado (en coordenadas locales del elemento)
+      mesh.position.set(0, 0, 0);
       const box = new THREE.Box3().setFromObject(mesh);
       const size = box.getSize(new THREE.Vector3());
       if (size.y > 0) {
@@ -98,11 +101,8 @@ AFRAME.registerComponent('clip-player', {
         const b2 = new THREE.Box3().setFromObject(mesh);
         const c  = b2.getCenter(new THREE.Vector3());
         const wp = this.el.object3D.getWorldPosition(new THREE.Vector3());
-        mesh.position.x -= (c.x - wp.x);
-        mesh.position.z -= (c.z - wp.z);
-        mesh.position.y -= (b2.min.y - wp.y);
+        mesh.position.set(-(c.x - wp.x), -(b2.min.y - wp.y), -(c.z - wp.z));
       }
-      this.el.object3D.rotation.y = THREE.MathUtils.degToRad(GIRAR_ROBOT_Y);
       this.clips = elegirClips(mesh.animations || []);
       this.mixer = new THREE.AnimationMixer(mesh);
       this.mixer.addEventListener('finished', () => {
@@ -152,7 +152,7 @@ document.getElementById('cam3d').setAttribute('gyro', '');
 
 /* ---- Elementos ---- */
 const $ = id => document.getElementById(id);
-const camVideo = $('cam'), vid = $('vid'), grupo = $('grupo'), cam3d = $('cam3d');
+const camVideo = $('cam'), vid = $('vid'), cam3d = $('cam3d');
 const mAp = $('mAparicion'), mEs = $('mEspera'), mGi = $('mGiro');
 const botones = $('botones'), btnSi = $('btnSi'), btnNo = $('btnNo'), video3d = $('video3d');
 const btnStart = $('btnStart');
@@ -161,7 +161,6 @@ let listos = 0, assetsListos = false;
 
 function mostrarModelo(m) {
   [mAp, mEs, mGi].forEach(x => x.object3D.visible = (x === m));
-  m.components['clip-player'];
 }
 function reproducir(m, repetir) { mostrarModelo(m); m.components['clip-player'].reproducir(repetir); }
 
@@ -191,7 +190,7 @@ revisarCarga();
     });
 })();
 
-/* ---- Colocar el contenido a ~1 m frente al teléfono ---- */
+/* ---- Colocar cada elemento en su posición fija frente al teléfono ---- */
 function colocarFrenteAlTelefono() {
   const q = cam3d.object3D.quaternion;
   const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(q);
@@ -202,9 +201,32 @@ function colocarFrenteAlTelefono() {
   }
   if (h.length() < 0.01) h.set(0, 0, -1);
   h.normalize();
-  const y = THREE.MathUtils.clamp(fwd.y, -0.5, 0.5);
-  grupo.object3D.position.set(h.x * DISTANCIA_M, y * DISTANCIA_M, h.z * DISTANCIA_M);
-  grupo.object3D.rotation.set(0, Math.atan2(-h.x, -h.z), 0);   // mira hacia el teléfono
+
+  const derecha = new THREE.Vector3(-h.z, 0, h.x);          // vector "derecha" respecto al teléfono
+  const rotMirarTelefono = Math.atan2(-h.x, -h.z);          // hace que el elemento mire hacia el usuario
+  const giro = THREE.MathUtils.degToRad(GIRAR_ROBOT_Y);
+
+  const punto = p => new THREE.Vector3()
+    .copy(h).multiplyScalar(p.adelante)
+    .addScaledVector(derecha, p.derecha)
+    .setY(-p.abajo);
+
+  const pRobot = punto(ROBOT);
+  const pVideo = punto(VIDEO);
+
+  // GLB (los tres modelos comparten posición y orientación)
+  [mAp, mEs, mGi].forEach(m => {
+    m.object3D.position.copy(pRobot);
+    m.object3D.rotation.set(0, rotMirarTelefono + giro, 0);
+  });
+
+  // MP4
+  video3d.object3D.position.copy(pVideo);
+  video3d.object3D.rotation.set(0, rotMirarTelefono, 0);
+
+  // Botones: debajo del robot, con la misma orientación
+  botones.object3D.position.copy(pRobot).add(new THREE.Vector3(0, -0.16, 0)).addScaledVector(h, -0.1);
+  botones.object3D.rotation.set(0, rotMirarTelefono + giro, 0);
 }
 
 /* ---- Inicio ---- */
@@ -235,7 +257,6 @@ btnStart.addEventListener('click', async () => {
   colocarFrenteAlTelefono();
 
   $('inicio').style.display = 'none';
-  grupo.object3D.visible = true;
   video3d.object3D.visible = true;
   botones.object3D.visible = true;
   vid.currentTime = 0; vid.muted = false;
@@ -275,7 +296,7 @@ mGi.addEventListener('clip-done', () => {
 
 function terminar() {
   estado = 'fin';
-  grupo.object3D.visible = false;
+  [mAp, mEs, mGi, botones, video3d].forEach(x => x.object3D.visible = false);
   const s = camVideo.srcObject; if (s) s.getTracks().forEach(t => t.stop());
   camVideo.srcObject = null;
   $('fin').style.display = 'flex';
