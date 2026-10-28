@@ -63,6 +63,7 @@
   <a-entity id="mGiro"      visible="false" gltf-model="#glbGiro"      clip-player></a-entity>
 
   <a-entity id="botones" visible="false">
+    <a-text value="¿Queres mas informacion?" align="center" width="1.2" color="#FFFFFF" position="0 0.15 0"></a-text>
     <a-image id="btnSi" class="clickable" src="#imgSi" width="0.2" height="0.191" position="-0.19 0 0"></a-image>
     <a-image id="btnNo" class="clickable" src="#imgNo" width="0.2" height="0.191" position="0.19 0 0"></a-image>
   </a-entity>
@@ -176,7 +177,6 @@ const assets = document.querySelector('a-assets');
 if (assets.hasLoaded) { assetsListos = true; } else { assets.addEventListener('loaded', () => { assetsListos = true; revisarCarga(); }); }
 revisarCarga();
 
-
 /* ---- Diagnóstico: avisa si falta algún archivo en el repositorio ---- */
 (function () {
   const archivos = ['3er-anio.mp4','aparicion-saludo.glb','espera.glb','giro2.glb','boton-si.png','boton-no.png'];
@@ -258,18 +258,26 @@ btnStart.addEventListener('click', async () => {
 
   $('inicio').style.display = 'none';
   video3d.object3D.visible = true;
-  botones.object3D.visible = true;
+  botones.object3D.visible = false; // Permanece oculto hasta que termina el video
   vid.currentTime = 0; vid.muted = false;
-  vid.play().catch(() => { vid.muted = true; vid.play().catch(()=>{}); });   // se queda congelado al final (sin loop)
+  vid.play().catch(() => { vid.muted = true; vid.play().catch(()=>{}); });
+
   estado = 'aparicion';
   reproducir(mAp, false);
 });
+
+/* ---- Al finalizar el video, aparecen la pregunta y los botones ---- */
+vid.onended = () => {
+  if (estado !== 'fin') {
+    botones.object3D.visible = true;
+  }
+};
 
 /* ---- Secuencia de animaciones ---- */
 mAp.addEventListener('clip-done', () => {
   if (estado !== 'aparicion') return;
   estado = 'espera';
-  reproducir(mEs, true);                       // ESPERA en bucle, sin sacar video ni botones
+  reproducir(mEs, true);                       // ESPERA en bucle, sin sacar video
 });
 
 function ocultarBotones() { botones.object3D.visible = false; btnSi.classList.remove('clickable'); btnNo.classList.remove('clickable'); }
