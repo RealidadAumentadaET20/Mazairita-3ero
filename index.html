@@ -226,7 +226,7 @@ function colocarFrenteAlTelefono() {
 
   // Botones: debajo del robot, con la misma orientación
   botones.object3D.position.copy(pRobot).add(new THREE.Vector3(0, -0.16, 0)).addScaledVector(h, -0.1);
-  botones.object3D.rotation.set(0, rotMirarTelefono + giro, 0);
+  botones.object3D.rotation.set(0, rotMirarTelefono, 0);
 }
 
 /* ---- Inicio ---- */
